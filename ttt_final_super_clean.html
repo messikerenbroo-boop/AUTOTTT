@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TTT Neon Pixel UI (Original System)</title>
+
+<style>
+body {
+    margin:0;
+    font-family: 'Poppins', sans-serif;
+    background: radial-gradient(circle,#020617,#0f172a);
+    color:white;
+    text-align:center;
+    overflow:hidden;
+}
+
+/* FLOAT BG */
+.bg-float { position:fixed; inset:0; z-index:-1; overflow:hidden; }
+.pixel {
+    position:absolute;
+    opacity:0;
+    animation:float 8s linear forwards;
+    filter: drop-shadow(0 0 6px #38bdf8);
+}
+@keyframes float {
+    0%{transform:translateY(110vh);opacity:0;}
+    20%{opacity:1;}
+    100%{transform:translateY(-10vh);opacity:0;}
+}
+
+/* UI */
+h1 { margin:15px; text-shadow:0 0 10px #38bdf8; }
+
+.tabs { margin:10px; }
+.tab {
+    padding:10px 15px;
+    margin:5px;
+    border:none;
+    border-radius:10px;
+    background:#1e293b;
+    color:white;
+    cursor:pointer;
+}
+.tab.active {
+    background:#38bdf8;
+    color:black;
+    box-shadow:0 0 10px #38bdf8;
+}
+
+.board {
+    display:grid;
+    grid-template-columns:repeat(3,90px);
+    gap:10px;
+    justify-content:center;
+    margin:20px auto;
+}
+
+.cell {
+    width:90px;
+    height:90px;
+    background:rgba(255,255,255,0.05);
+    border-radius:12px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    font-size:48px;
+    cursor:pointer;
+    transition:0.2s;
+}
+
+.cell:hover { transform:scale(1.05); }
+.cell span { animation:pop .2s ease; }
+
+@keyframes pop {
+    from{transform:scale(0.3);opacity:0;}
+    to{transform:scale(1);opacity:1;}
+}
+
+.highlight { box-shadow:0 0 10px #38bdf8; }
+
+button {
+    padding:10px 15px;
+    border:none;
+    border-radius:10px;
+    background:#38bdf8;
+    cursor:pointer;
+}
+
+.wa-float {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #25D366;
+  color: white;
+  padding: 12px 16px;
+  border-radius: 30px;
+  font-weight: bold;
+  text-decoration: none;
+  box-shadow: 0 0 15px #25D366;
+  animation: pulse 1.5s infinite;
+  z-index: 999;
+}
+
+.wa-float:hover {
+  transform: scale(1.1);
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 10px #25D366; }
+  50% { box-shadow: 0 0 25px #25D366; }
+  100% { box-shadow: 0 0 10px #25D366; }
+}
+
+
+.credit{
+  position: fixed;
+  bottom: 10px;
+  left: 10px;
+  font-size: 12px;
+  color: #94a3b8;
+  opacity: 0.8;
+}
+
+
+.report{
+  position: fixed;
+  bottom: 40px;
+  left: 10px;
+  font-size: 12px;
+  color: #f87171;
+  opacity: 0.9;
+}
+
+.report a{
+  color:#22c55e;
+  text-decoration:none;
+  font-weight:bold;
+}
+
+
+.report{
+  position: fixed;
+  bottom: 60px;
+  left: 10px;
+}
+
+.report-box{
+  background: rgba(15,23,42,0.8);
+  padding:10px 12px;
+  border-radius:10px;
+  box-shadow:0 0 10px rgba(248,113,113,0.3);
+  text-align:left;
+}
+
+.report-title{
+  font-size:11px;
+  color:#f87171;
+  font-weight:bold;
+}
+
+.report-number a{
+  color:#22c55e;
+  font-weight:bold;
+  text-decoration:none;
+  font-size:13px;
+}
+
+.report-note{
+  font-size:10px;
+  color:#94a3b8;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="bg-float"></div>
+
+<h1>⚡ TTT BOT</h1>
+
+<div class="tabs">
+<button class="tab active" onclick="switchMode(1)">Enemy Starts</button>
+<button class="tab" onclick="switchMode(2)">You Start</button>
+</div>
+
+<div id="status">CLICK ENEMY MOVE</div>
+<div class="board" id="board"></div>
+<button onclick="resetGame()">NEW GAME</button>
+
+<script>
+// FLOAT BG
+function spawn(){
+ let el=document.createElement("div");
+ el.className="pixel";
+ el.style.left=Math.random()*100+"vw";
+ el.style.width=(10+Math.random()*20)+"px";
+ document.querySelector(".bg-float").appendChild(el);
+ setTimeout(()=>el.remove(),8000);
+}
+setInterval(spawn,500);
+
+// ORIGINAL SYSTEM
+let board = Array(9).fill(null);
+let gameOver=false;
+let currentMode=1;
+let cells=[];
+let lastFirstMoves=[];
+let lastMove=null;
+
+function createBoard(){
+ let el=document.getElementById("board");
+ el.innerHTML="";
+ cells=[];
+ for(let i=0;i<9;i++){
+  let c=document.createElement("div");
+  c.className="cell";
+  c.dataset.index=i;
+  c.onclick=click;
+  el.appendChild(c);
+  cells.push(c);
+ }
+}
+
+function click(e){
+ if(gameOver) return;
+ let i=e.target.dataset.index;
+ if(board[i]) return;
+
+ board[i]="X";
+ lastMove=i;
+ update();
+
+ if(win("X")) return end("ENEMY WON");
+
+ setTimeout(bot,200);
+}
+
+function getBestFirstMove(){
+ const best=[0,2,4,6,8];
+ let avail=best.filter(x=>!lastFirstMoves.includes(x));
+ if(avail.length===0){avail=best; lastFirstMoves=[];}
+ let pick=avail[Math.floor(Math.random()*avail.length)];
+ lastFirstMoves.push(pick);
+ if(lastFirstMoves.length>3) lastFirstMoves.shift();
+ return pick;
+}
+
+function bot(){
+ let best=-Infinity, move=-1;
+ for(let i=0;i<9;i++){
+  if(board[i]==null){
+   board[i]="O";
+   let score=minimax(board,0,false,-Infinity,Infinity);
+   board[i]=null;
+   if(score>best){best=score; move=i;}
+  }
+ }
+ board[move]="O";
+ lastMove=move;
+ update();
+
+ if(win("O")) return end("YOU WIN");
+}
+
+function minimax(b,d,max,a,beta){
+ if(winCheck(b,"O")) return 10-d;
+ if(winCheck(b,"X")) return d-10;
+ if(!b.includes(null)) return 0;
+
+ if(max){
+  let best=-Infinity;
+  for(let i=0;i<9;i++){
+   if(b[i]==null){
+    b[i]="O";
+    best=Math.max(best,minimax(b,d+1,false,a,beta));
+    b[i]=null;
+    a=Math.max(a,best);
+    if(beta<=a) break;
+   }
+  }
+  return best;
+ } else {
+  let best=Infinity;
+  for(let i=0;i<9;i++){
+   if(b[i]==null){
+    b[i]="X";
+    best=Math.min(best,minimax(b,d+1,true,a,beta));
+    b[i]=null;
+    beta=Math.min(beta,best);
+    if(beta<=a) break;
+   }
+  }
+  return best;
+ }
+}
+
+function winCheck(b,p){
+ const w=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+ return w.some(a=>a.every(i=>b[i]==p));
+}
+function win(p){return winCheck(board,p);}
+
+function update(){
+ cells.forEach((c,i)=>{
+  c.innerHTML = board[i]?`<span>${board[i]}</span>`:"";
+  c.classList.toggle("highlight", i==lastMove);
+ });
+}
+
+function end(msg){
+ gameOver=true;
+ document.getElementById("status").textContent=msg;
+}
+
+function resetGame(){
+ board=Array(9).fill(null);
+ gameOver=false;
+ createBoard();
+
+ if(currentMode==1){
+  document.getElementById("status").textContent="CLICK ENEMY MOVE";
+ } else {
+  let f=getBestFirstMove();
+  setTimeout(()=>{
+   board[f]="O";
+   lastMove=f;
+   update();
+   document.getElementById("status").textContent="CLICK ENEMY MOVE";
+  },150);
+ }
+}
+
+function switchMode(m){
+ currentMode=m;
+ document.querySelectorAll(".tab").forEach((t,i)=>t.classList.toggle("active",i+1==m));
+ resetGame();
+}
+
+createBoard();
+resetGame();
+</script>
+
+
+<!-- WA BUTTON -->
+<a href="https://chat.whatsapp.com/DgHiCukhdWl3y95reSaiUu" target="_blank" class="wa-float">
+💬 WA
+</a>
+
+
+<div class="credit">Made by Hunt / Rayyanza</div>
+
+
+
+<div class="report">
+  <div class="report-box">
+    <div class="report-title">⚠️ DEV RESMI</div>
+    <div class="report-number">
+      <a href="https://wa.me/6285659852467" target="_blank">085659852467</a>
+    </div>
+    <div class="report-note">Selain nomor ini = SCAM / HAMA</div>
+  </div>
+</div>
+
+
+</body>
+</html>
